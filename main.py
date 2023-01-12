@@ -1,9 +1,17 @@
 import discord
 import openai
+from better_profanity import profanity
 from config import *
 
 
 intents = discord.Intents.all()
+
+
+class filter_value:
+    """Check if it should filter messages."""
+
+    def __init__(self):
+        self.filter_content = False
 
 
 class my_client(discord.Client):
@@ -23,15 +31,6 @@ class my_client(discord.Client):
 
         return response['choices'][0]['text']
 
-    ### Embed ###
-
-    def embed(self, header, content):
-        """Function to create an embeded message."""
-        embed = discord.Embed(title=header,
-                              description=content, color=0xFF5733)
-
-        return embed
-
     async def on_ready(self):
         print('Logged on as', self.user)
 
@@ -49,9 +48,31 @@ class my_client(discord.Client):
 
         ### Help ###
 
+        if message.content.startswith('$help clear'):
+            await message.channel.send(embed=discord.Embed(
+                title='$clear', description='Clears all messages in the current channel.', color=0xFF5733))
+            return
+
+        if message.content.startswith('$help poll'):
+            await message.channel.send(embed=discord.Embed(
+                title='$poll', description='Clears all messages in the current channel.', color=0xFF5733))
+            return
+
+        if message.content.startswith('$help filter'):
+            await message.channel.send(embed=discord.Embed(
+                title='$filter', description='Used to manage the profanity filter (default is off).\n$filter to check if its on.\n$filter on / $filter off to turn it on/off.', color=0xFF5733))
+            return
+
         if message.content.startswith('$help'):
-            await message.channel.send(embed=self.embed("Commands",
-                                                        "**$clear** Clears all history in the current channel.\n**$applications** Descriptions for all aplications the bot can perform."))
+            embed = discord.Embed(
+                title='Info', description='To see the description of each command use **$help <command>**', color=0xFF5733)
+            embed.add_field(name="AI bot",
+                            value="An AI bot that you can ask questions and with the use of OpenAI and it's GPT-3 text davinci engine.To use the AI type anything in the AI bot channel.",
+                            inline=False)
+            embed.add_field(name="Commands",
+                            value="$clear\n$poll\n$filter",
+                            inline=False)
+            await message.channel.send(embed=embed)
             return
 
         ### Clear ###
@@ -66,21 +87,25 @@ class my_client(discord.Client):
                 await message.channel.delete_messages(msg[n:n+100])
             return
 
-        ### Applications ###
+        ### Filter ###
 
-        if message.content.startswith('$applications'):
-            embed = self.embed("Applications", "")
-            embed.add_field(name="AI bot",
-                            value="An AI bot that you can ask questions and with the use of OpenAI and it's GPT-3 text davinci engine.To use the AI type anything in the AI bot channel.",
-                            inline=False)
-            embed.add_field(name="Poll",
-                            value="Create polls for people to vote on by using the **$poll** command followed by the topic of the poll.",
-                            inline=False)
-            embed.add_field(name="Application 3",
-                            value="This is a description",
-                            inline=False)
+        if message.content.startswith('$filter on'):
+            filter_content.filter_content = True
+            await message.channel.send(f'Filter now set to True')
+            return
 
-            await message.channel.send(embed=embed)
+        if message.content.startswith('$filter off'):
+            filter_content.filter_content = False
+            await message.channel.send(f'Filter now set to False')
+            return
+
+        if message.content.startswith('$filter'):
+            await message.channel.send(f'Filter currently set to {filter_content.filter_content}')
+            return
+
+        if filter_content.filter_content == True and profanity.contains_profanity(message.content) == True:
+            await message.delete()
+            await message.channel.send(f'{message.author.mention} did a bit of a naughty but I have corrected his ways.\n{profanity.censor(message.content)}')
             return
 
         ### Poll ###
@@ -127,6 +152,7 @@ class my_client(discord.Client):
                 await message.remove_reaction(emoji, client.get_user(user_id))
 
 
+filter_content = filter_value()
 client = my_client(intents=intents)
 
 
