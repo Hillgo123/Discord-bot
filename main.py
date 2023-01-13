@@ -14,22 +14,54 @@ class filter_value:
         self.filter_content = False
 
 
-class my_client(discord.Client):
+class ai:
+    """Class that connects with the OpenAI API to generate a response."""
+
+    def __init__(self):
+        self.temp = 0.7
+        self.tokens = 50
+        self.top_p = 1
+        self.f_p = 0
+        self.p_p = 0
+
     ### AI bot response ###
 
     def ai_bot(self, question):
         """Function request a response from the OpenaAI engine."""
+
         response = openai.Completion.create(
             model="text-davinci-003",
             prompt=question,
-            temperature=1,
-            max_tokens=80,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
+            temperature=self.temp,
+            max_tokens=self.tokens,
+            top_p=self.top_p,
+            frequency_penalty=self.f_p,
+            presence_penalty=self.p_p
         )
 
         return response['choices'][0]['text']
+
+    ### Update values ###
+
+    def set_values(self, value, msg, lim, min, value_name):
+        try:
+            value = int(msg.content.split()[-1])
+
+        except:
+            value = value
+
+        if value > lim:
+            value = lim
+            yield f'{value_name} limit is {lim}.'
+
+        if value < min:
+            value = min
+            yield f'{value_name} minimum is {min}.'
+
+        yield f'{value_name} set to {value}'
+
+
+class my_client(discord.Client):
 
     async def on_ready(self):
         print('Logged on as', self.user)
@@ -38,7 +70,7 @@ class my_client(discord.Client):
         ### Welcome ###
 
         channel = client.get_channel(general_channel_id)
-        await channel.send((f"{member.mention} Welcome to my server!\nFor a list of available commands please type $help"))
+        await channel.send((f"{member.mention} Welcome to my server!\nFor a list of available commands please type !help"))
 
     async def on_message(self, message):
         ### Bot check ###
@@ -48,37 +80,70 @@ class my_client(discord.Client):
 
         ### Help ###
 
-        if message.content.startswith('$help clear'):
+        if message.content.startswith('!help clear'):
             await message.channel.send(embed=discord.Embed(
-                title='$clear', description='Clears all messages in the current channel.', color=0xFF5733))
+                title='!clear', description='Clears all messages in the current channel.', color=0xFF5733))
             return
 
-        if message.content.startswith('$help poll'):
+        if message.content.startswith('!help poll'):
             await message.channel.send(embed=discord.Embed(
-                title='$poll', description='Clears all messages in the current channel.', color=0xFF5733))
+                title='!poll', description='Creates an ambeded message that people can vote on through reactions.', color=0xFF5733))
             return
 
-        if message.content.startswith('$help filter'):
+        if message.content.startswith('!help filter'):
             await message.channel.send(embed=discord.Embed(
-                title='$filter', description='Used to manage the profanity filter (default is off).\n$filter to check if its on.\n$filter on / $filter off to turn it on/off.', color=0xFF5733))
+                title='!filter', description='Used to manage the profanity filter (default is off).\n!filter to check if its on.\n!filter on / !filter off to turn it on/off.', color=0xFF5733))
             return
 
-        if message.content.startswith('$help'):
+        if message.content.startswith('!help ai'):
             embed = discord.Embed(
-                title='Info', description='To see the description of each command use **$help <command>**', color=0xFF5733)
-            embed.add_field(name="AI bot",
-                            value="An AI bot that you can ask questions and with the use of OpenAI and it's GPT-3 text davinci engine.To use the AI type anything in the AI bot channel.",
-                            inline=False)
-            embed.add_field(name="Commands",
-                            value="$clear\n$poll\n$filter",
-                            inline=False)
+                title='AI bot', description="An AI bot that you can ask questions and with the use of OpenAI and it's GPT-3 text davinci engine.", color=0xFF5733)
+
+            embed.add_field(
+                name='**AI commands**',
+                value='',
+                inline=False
+            )
+
+            embed.add_field(
+                name='!ai',
+                value='Follow the command with what question you want to ask the AI.',
+                inline=False
+            )
+
+            embed.add_field(
+                name='!ai temp',
+                value='Controlls randomness. Lowering the value results in less random outputs (0 - 1). \n Default: 0.7',
+                inline=False
+            )
+
+            embed.add_field(
+                name='!ai tokens',
+                value='Controlls length of output (10 - 100). \n Default: 50',
+                inline=False
+            )
+
+            embed.add_field(
+                name='!ai topp',
+                value='Controlls diversity through nucleus sampling (0 - 1). \n Default: 1',
+                inline=False
+            )
+
+            await message.channel.send(embed=embed)
+            return
+
+        if message.content.startswith('!help'):
+            embed = discord.Embed(
+                title='Commands', description='To see the description of each command use **!help <command>**\n!clear\n!poll\n!filter\n!ai', color=0xFF5733)
             await message.channel.send(embed=embed)
             return
 
         ### Clear ###
 
-        if message.content.startswith('$clear'):
-            await message.channel.send(embed=self.embed("Clearing...", ""))
+        if message.content.startswith('!clear'):
+            embed = discord.Embed(
+                title='Clearing...', description='', color=0xFF5733)
+            await message.channel.send(embed=embed)
             msg = []
             async for n in message.channel.history(limit=100):
                 msg.append(n)
@@ -89,17 +154,17 @@ class my_client(discord.Client):
 
         ### Filter ###
 
-        if message.content.startswith('$filter on'):
+        if message.content.startswith('!filter on'):
             filter_content.filter_content = True
             await message.channel.send(f'Filter now set to True')
             return
 
-        if message.content.startswith('$filter off'):
+        if message.content.startswith('!filter off'):
             filter_content.filter_content = False
             await message.channel.send(f'Filter now set to False')
             return
 
-        if message.content.startswith('$filter'):
+        if message.content.startswith('!filter'):
             await message.channel.send(f'Filter currently set to {filter_content.filter_content}')
             return
 
@@ -110,23 +175,47 @@ class my_client(discord.Client):
 
         ### Poll ###
 
-        if message.content.startswith('$poll'):
-            msg = message.content.replace('$poll', '')
-            msg = await message.channel.send(embed=self.embed(f'Poll: {msg}', ''))
+        if message.content.startswith('!poll'):
+            msg = message.content.replace('!poll', '')
+            embed = discord.Embed(
+                title=f'Poll: {msg}', description='', color=0xFF5733)
+            msg = await message.channel.send(embed=embed)
             await msg.add_reaction("👍")
             await msg.add_reaction("👎")
             return
 
-        ### Invalid command ###
-
-        if message.content.startswith('$'):
-            await message.channel.send('Type **$help** for a list of commands.')
-            return
-
         ### AI bot ###
 
-        if message.channel.id == ai_bot_channel_id:
-            await message.channel.send(f"{message.author.mention}\n" + self.ai_bot(message.content + '.'))
+        if message.channel.id == ai_bot_channel_id and message.content.startswith('!ai'):
+
+            ### Set temprature ###
+
+            if message.content.startswith('!ai temp'):
+                for n in ai_bot.set_values(ai_bot.temp, message, 1, 0, 'Temprature'):
+                    await message.channel.send(n)
+                return
+
+            ### Set tokens ###
+
+            if message.content.startswith('!ai tokens'):
+                for n in ai_bot.set_values(ai_bot.tokens, message, 100, 10, 'Tokens'):
+                    await message.channel.send(n)
+                return
+
+            ### Set top p ###
+
+            if message.content.startswith('!ai topp'):
+                for n in ai_bot.set_values(ai_bot.top_p, message, 1, 0, 'Top P'):
+                    await message.channel.send(n)
+                return
+
+            await message.channel.send(f"{message.author.mention}" + ai_bot.ai_bot(message.content + '.'))
+            return
+
+        ### Invalid command ###
+
+        if message.content.startswith('!'):
+            await message.channel.send('Type **!help** for a list of commands.')
             return
 
     ### Remove reactions from poll ###
@@ -153,6 +242,7 @@ class my_client(discord.Client):
 
 
 filter_content = filter_value()
+ai_bot = ai()
 client = my_client(intents=intents)
 
 
