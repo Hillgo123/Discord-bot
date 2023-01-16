@@ -1,4 +1,5 @@
 import discord
+import asyncio
 import openai
 from better_profanity import profanity
 from config import *
@@ -30,7 +31,7 @@ class ai:
         """Function request a response from the OpenaAI engine."""
 
         response = openai.Completion.create(
-            model="text-davinci-003",
+            model='text-davinci-003',
             prompt=question,
             temperature=self.temp,
             max_tokens=self.tokens,
@@ -70,7 +71,7 @@ class my_client(discord.Client):
         ### Welcome ###
 
         channel = client.get_channel(general_channel_id)
-        await channel.send((f"{member.mention} Welcome to my server!\nFor a list of available commands please type !help"))
+        await channel.send(f'{member.mention} Welcome to my server!\nFor a list of available commands please type !help')
 
     async def on_message(self, message):
         ### Bot check ###
@@ -82,22 +83,30 @@ class my_client(discord.Client):
 
         if message.content.startswith('!help clear'):
             await message.channel.send(embed=discord.Embed(
-                title='!clear', description='Clears all messages in the current channel.', color=0xFF5733))
+                title='!clear',
+                description='Clears all messages in the current channel.',
+                color=0xFF5733))
             return
 
         if message.content.startswith('!help poll'):
             await message.channel.send(embed=discord.Embed(
-                title='!poll', description='Creates an ambeded message that people can vote on through reactions.', color=0xFF5733))
+                title='!poll',
+                description='Creates an ambeded message that people can vote on through reactions.',
+                color=0xFF5733))
             return
 
         if message.content.startswith('!help filter'):
             await message.channel.send(embed=discord.Embed(
-                title='!filter', description='Used to manage the profanity filter (default is off).\n!filter to check if its on.\n!filter on / !filter off to turn it on/off.', color=0xFF5733))
+                title='!filter',
+                description='Used to manage the profanity filter (default is off).\n!filter to check if its on.\n!filter on / !filter off to turn it on/off.',
+                color=0xFF5733))
             return
 
         if message.content.startswith('!help ai'):
             embed = discord.Embed(
-                title='AI bot', description="An AI bot that you can ask questions and with the use of OpenAI and it's GPT-3 text davinci engine.", color=0xFF5733)
+                title='AI bot',
+                description='An AI bot that you can ask questions and with the use of OpenAI and the GPT-3 text davinci engine.',
+                color=0xFF5733)
 
             embed.add_field(
                 name='**AI commands**',
@@ -145,11 +154,11 @@ class my_client(discord.Client):
                 title='Clearing...', description='', color=0xFF5733)
             await message.channel.send(embed=embed)
             msg = []
-            async for n in message.channel.history(limit=100):
+            async for n in message.channel.history(limit=300):
                 msg.append(n)
 
-            for n in range(0, len(msg), 100):
-                await message.channel.delete_messages(msg[n:n+100])
+            for n in range(0, len(msg), 300):
+                await message.channel.delete_messages(msg[n:n+300])
             return
 
         ### Filter ###
@@ -180,8 +189,10 @@ class my_client(discord.Client):
             embed = discord.Embed(
                 title=f'Poll: {msg}', description='', color=0xFF5733)
             msg = await message.channel.send(embed=embed)
-            await msg.add_reaction("👍")
-            await msg.add_reaction("👎")
+            await msg.add_reaction('\N{THUMBS UP SIGN}')
+            await msg.add_reaction('\N{THUMBS DOWN SIGN}')
+
+            self.poll_finish = client.loop.create_task(self.poll_test(message))
             return
 
         ### AI bot ###
@@ -209,7 +220,7 @@ class my_client(discord.Client):
                     await message.channel.send(n)
                 return
 
-            await message.channel.send(f"{message.author.mention}" + ai_bot.ai_bot(message.content + '.'))
+            await message.channel.send(f'{message.author.mention}' + ai_bot.ai_bot(message.content + '.'))
             return
 
         ### Invalid command ###
@@ -228,17 +239,53 @@ class my_client(discord.Client):
 
         message = await client.get_channel(channel_id).fetch_message(message_id)
         reaction_users = []
+        self.reactions_up = []
+        self.reactions_down = []
 
         for reaction in message.reactions:
             async for user in reaction.users():
                 reaction_users.append(user)
 
-        if user_id in [user.id for user in reaction_users] and not user_id == self.user:
+        if user_id in [user.id for user in reaction_users] and user_id != self.user.id:
             user_reaction_count = reaction_users.count(
                 client.get_user(user_id))
 
             if user_reaction_count >= 2:
                 await message.remove_reaction(emoji, client.get_user(user_id))
+
+            else:
+                if emoji.name == '\N{THUMBS UP SIGN}':
+                    self.reactions_up.append(message.reactions)
+
+                if emoji.name == '\N{THUMBS DOWN SIGN}':
+                    self.reactions_down.append(message.reactions)
+
+    ### Poll results ###
+
+    async def poll_test(self, message):
+        while True:
+            await asyncio.sleep(20)
+            embed = discord.Embed(
+                title=f"Poll **{message.content.replace('!poll', '')}** results:",
+                description=f'',
+                color=0xFF5733
+            )
+
+            embed.add_field(
+                name='\N{THUMBS UP SIGN}',
+                value=len(self.reactions_up) + 1,
+                inline=True
+            )
+
+            embed.add_field(
+                name='\N{THUMBS DOWN SIGN}',
+                value=len(self.reactions_down) + 1,
+                inline=True
+            )
+
+            await message.channel.send(embed=embed)
+
+            self.poll_finish.cancel()
 
 
 filter_content = filter_value()
