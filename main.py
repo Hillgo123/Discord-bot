@@ -1,8 +1,8 @@
-import discord
 import asyncio
+import discord
 import openai
+import config
 from better_profanity import profanity
-from config import *
 
 
 intents = discord.Intents.all()
@@ -42,27 +42,28 @@ class ai:
 
         return response['choices'][0]['text']
 
-    ### Update values ###
+    def set_values(self, value, msg, limit, minimum, value_name):
+        """Update values"""
 
-    def set_values(self, value, msg, lim, min, value_name):
         try:
             value = int(msg.content.split()[-1])
 
-        except:
-            value = value
+        except Exception as e:
+            print(e, '\nValue is not a valid integer.')
 
-        if value > lim:
-            value = lim
-            yield f'{value_name} limit is {lim}.'
+        if value > limit:
+            value = limit
+            yield f'{value_name} limit is {limit}.'
 
-        if value < min:
-            value = min
-            yield f'{value_name} minimum is {min}.'
+        if value < minimum:
+            value = minimum
+            yield f'{value_name} minimum is {minimum}.'
 
         yield f'{value_name} set to {value}'
 
 
 class my_client(discord.Client):
+    """Main client"""
 
     async def on_ready(self):
         print('Logged on as', self.user)
@@ -70,7 +71,7 @@ class my_client(discord.Client):
     async def on_member_join(self, member):
         ### Welcome ###
 
-        channel = client.get_channel(general_channel_id)
+        channel = client.get_channel(config.general_channel_id)
         await channel.send(f'{member.mention} Welcome to my server!\nFor a list of available commands please type !help')
 
     async def on_message(self, message):
@@ -84,13 +85,13 @@ class my_client(discord.Client):
         if message.content.startswith('!help clear'):
             await message.channel.send(embed=discord.Embed(
                 title='!clear',
-                description='Clears all messages in the current channel.',
+                description='Clears messages in the current channel.',
                 color=0xFF5733))
             return
 
         if message.content.startswith('!help poll'):
             await message.channel.send(embed=discord.Embed(
-                title='!poll',
+                title='!poll [topic]',
                 description='Creates an ambeded message that people can vote on through reactions.',
                 color=0xFF5733))
             return
@@ -115,26 +116,26 @@ class my_client(discord.Client):
             )
 
             embed.add_field(
-                name='!ai',
-                value='Follow the command with what question you want to ask the AI.',
+                name='!ai [prompt]',
+                value='Ask the AI questions.',
                 inline=False
             )
 
             embed.add_field(
-                name='!ai temp',
-                value='Controlls randomness. Lowering the value results in less random outputs (0 - 1). \n Default: 0.7',
+                name='!ai temp [0 - 1]',
+                value='Controlls randomness. Lowering the value results in less random outputs. \n Default: 0.7',
                 inline=False
             )
 
             embed.add_field(
-                name='!ai tokens',
-                value='Controlls length of output (10 - 100). \n Default: 50',
+                name='!ai tokens [10 - 100]',
+                value='Controlls length of output. \n Default: 50',
                 inline=False
             )
 
             embed.add_field(
-                name='!ai topp',
-                value='Controlls diversity through nucleus sampling (0 - 1). \n Default: 1',
+                name='!ai topp [0 - 1]',
+                value='Controlls diversity through nucleus sampling. \n Default: 1',
                 inline=False
             )
 
@@ -143,7 +144,7 @@ class my_client(discord.Client):
 
         if message.content.startswith('!help'):
             embed = discord.Embed(
-                title='Commands', description='To see the description of each command use **!help <command>**\n!clear\n!poll\n!filter\n!ai', color=0xFF5733)
+                title='Commands', description='To see the description of each command use **!help [command]**\n!clear\n!poll\n!filter\n!ai', color=0xFF5733)
             await message.channel.send(embed=embed)
             return
 
@@ -153,31 +154,26 @@ class my_client(discord.Client):
             embed = discord.Embed(
                 title='Clearing...', description='', color=0xFF5733)
             await message.channel.send(embed=embed)
-            msg = []
-            async for n in message.channel.history(limit=300):
-                msg.append(n)
-
-            for n in range(0, len(msg), 300):
-                await message.channel.delete_messages(msg[n:n+300])
+            await message.channel.purge(limit=10000)
             return
 
         ### Filter ###
 
         if message.content.startswith('!filter on'):
             filter_content.filter_content = True
-            await message.channel.send(f'Filter now set to True')
+            await message.channel.send('Filter now set to True')
             return
 
         if message.content.startswith('!filter off'):
             filter_content.filter_content = False
-            await message.channel.send(f'Filter now set to False')
+            await message.channel.send('Filter now set to False')
             return
 
         if message.content.startswith('!filter'):
             await message.channel.send(f'Filter currently set to {filter_content.filter_content}')
             return
 
-        if filter_content.filter_content == True and profanity.contains_profanity(message.content) == True:
+        if filter_content.filter_content is True and profanity.contains_profanity(message.content) is True:
             await message.delete()
             await message.channel.send(f'{message.author.mention} did a bit of a naughty but I have corrected his ways.\n{profanity.censor(message.content)}')
             return
@@ -189,15 +185,15 @@ class my_client(discord.Client):
             embed = discord.Embed(
                 title=f'Poll: {msg}', description='', color=0xFF5733)
             msg = await message.channel.send(embed=embed)
-            await msg.add_reaction('\N{THUMBS UP SIGN}')
-            await msg.add_reaction('\N{THUMBS DOWN SIGN}')
+            await msg.add_reaction('\N{WHITE HEAVY CHECK MARK}')
+            await msg.add_reaction('\N{CROSS MARK}')
 
             self.poll_finish = client.loop.create_task(self.poll_test(message))
             return
 
         ### AI bot ###
 
-        if message.channel.id == ai_bot_channel_id and message.content.startswith('!ai'):
+        if message.channel.id == config.ai_bot_channel_id and message.content.startswith('!ai'):
 
             ### Set temprature ###
 
@@ -254,31 +250,33 @@ class my_client(discord.Client):
                 await message.remove_reaction(emoji, client.get_user(user_id))
 
             else:
-                if emoji.name == '\N{THUMBS UP SIGN}':
+                if emoji.name == '\N{WHITE HEAVY CHECK MARK}':
                     self.reactions_up.append(message.reactions)
 
-                if emoji.name == '\N{THUMBS DOWN SIGN}':
+                if emoji.name == '\N{CROSS MARK}':
                     self.reactions_down.append(message.reactions)
 
     ### Poll results ###
 
     async def poll_test(self, message):
+        """Poll results"""
+
         while True:
             await asyncio.sleep(20)
             embed = discord.Embed(
                 title=f"Poll **{message.content.replace('!poll', '')}** results:",
-                description=f'',
+                description='',
                 color=0xFF5733
             )
 
             embed.add_field(
-                name='\N{THUMBS UP SIGN}',
+                name='\N{WHITE HEAVY CHECK MARK}',
                 value=len(self.reactions_up) + 1,
                 inline=True
             )
 
             embed.add_field(
-                name='\N{THUMBS DOWN SIGN}',
+                name='\N{CROSS MARK}',
                 value=len(self.reactions_down) + 1,
                 inline=True
             )
@@ -294,4 +292,4 @@ client = my_client(intents=intents)
 
 
 if __name__ == '__main__':
-    client.run(token)
+    client.run(config.token)
